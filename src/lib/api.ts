@@ -1,14 +1,42 @@
-import type { Entry } from "../components/TrainingTable";
 import type { Session } from "./auth";
+
+export type WeaponKey =
+  | "glock"
+  | "ups_s"
+  | "deagle"
+  | "ak47"
+  | "m4a4"
+  | "m4a1s"
+  | "galil";
+
+export type Entry = {
+  date: string;
+  weapon: WeaponKey;
+  kpm: number | null;
+};
 
 async function fetchJSON<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const res = await fetch(input, init);
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+
+  let data: unknown = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
+  }
+
   if (!res.ok) {
-    const msg = (data && (data.error || data.message)) || res.statusText;
+    const msg =
+      typeof data === "object" && data !== null && ("error" in data || "message" in data)
+        ? String((data as { error?: string; message?: string }).error || (data as { error?: string; message?: string }).message)
+        : typeof data === "string" && data
+        ? data
+        : res.statusText;
+
     throw new Error(msg);
   }
+
   return data as T;
 }
 

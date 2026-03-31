@@ -2,24 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/Card";
 import { clearSession, getSession } from "../lib/auth";
-import { apiGetPlayer, apiSaveEntry } from "../lib/api";
+import { apiGetPlayer, apiSaveEntry, type Entry, type WeaponKey } from "../lib/api";
 import { profile } from "../data/profile";
-
-type WeaponKey =
-  | "glock"
-  | "ups_s"
-  | "deagle"
-  | "ak47"
-  | "m4a4"
-  | "m4a1s"
-  | "galil";
-
-type Entry = {
-  date: string;
-  weapon: WeaponKey;
-  kpm_immobile: number | null;
-  kpm_cs: number | null;
-};
 
 type DayDraft = {
   date: string;
@@ -66,8 +50,7 @@ async function loadEntriesLocal(pseudo: string): Promise<Entry[]> {
   try {
     const parsed = JSON.parse(raw) as Entry[];
     return clampLast90Days(Array.isArray(parsed) ? parsed : []);
-  } catch (error) {
-  console.error("apiSaveEntry failed:", error);
+  } catch {
     return [];
   }
 }
@@ -79,23 +62,19 @@ async function saveEntriesLocal(pseudo: string, nextEntries: Entry[]) {
 
 function entriesToDayDraft(entries: Entry[], date: string): DayDraft {
   const draft = buildEmptyDraft(date);
-
   for (const entry of entries) {
     if (entry.date !== date) continue;
-    draft.values[entry.weapon] = entry.kpm_immobile;
+    draft.values[entry.weapon] = entry.kpm;
   }
-
   return draft;
 }
 
 function upsertEntriesFromDraft(entries: Entry[], draft: DayDraft): Entry[] {
   const filtered = entries.filter((e) => e.date !== draft.date);
-
   const additions: Entry[] = WEAPONS.map(({ key }) => ({
     date: draft.date,
     weapon: key,
-    kpm_immobile: draft.values[key],
-    kpm_cs: null,
+    kpm: draft.values[key],
   }));
 
   return clampLast90Days(
@@ -107,10 +86,7 @@ function upsertEntriesFromDraft(entries: Entry[], draft: DayDraft): Entry[] {
 
 function formatGraphDate(dateStr: string) {
   const date = new Date(`${dateStr}T00:00:00`);
-  return date.toLocaleDateString("fr-FR", {
-    day: "2-digit",
-    month: "2-digit",
-  });
+  return date.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
 }
 
 function formatFrenchDayLabel(dateStr: string) {
@@ -124,12 +100,11 @@ function formatFrenchDayLabel(dateStr: string) {
 
 function getLast7DaysStatus(entries: Entry[], todayIso: string) {
   const entryDates = new Set(entries.map((e) => e.date));
-  const today = new Date(`${todayIso}T00:00:00`);
+  const today = new Date(`${todayIso}T00:00:00}`);
 
   return Array.from({ length: 7 }, (_, index) => {
     const d = new Date(today);
     d.setDate(today.getDate() - (6 - index));
-
     const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
       d.getDate()
     ).padStart(2, "0")}`;
@@ -150,41 +125,25 @@ function getDailyGraphData(entries: Entry[], weaponFilter: FilterValue) {
     byDate.get(entry.date)!.push(entry);
   }
 
-  const dates = Array.from(byDate.keys()).sort((a, b) => a.localeCompare(b));
+  return Array.from(byDate.keys())
+    .sort((a, b) => a.localeCompare(b))
+    .map((date) => {
+      const dayEntries = byDate.get(date)!;
+      let values: number[] = [];
 
-  return dates.map((date) => {
-    const dayEntries = byDate.get(date)!;
-    let values: number[] = [];
+      if (weaponFilter === "all") {
+        values = dayEntries.map((entry) => entry.kpm).filter((v): v is number => typeof v === "number");
+      } else {
+        const weaponEntry = dayEntries.find((entry) => entry.weapon === weaponFilter);
+        values = typeof weaponEntry?.kpm === "number" ? [weaponEntry.kpm] : [];
+      }
 
-    if (weaponFilter === "all") {
-      values = dayEntries
-        .map((entry) => entry.kpm_immobile)
-        .filter((v): v is number => typeof v === "number");
-    } else {
-      const weaponEntry = dayEntries.find((entry) => entry.weapon === weaponFilter);
-      values =
-        typeof weaponEntry?.kpm_immobile === "number" ? [weaponEntry.kpm_immobile] : [];
-    }
-
-    const avg = values.length ? values.reduce((sum, v) => sum + v, 0) / values.length : 0;
-
-    return {
-      date,
-      value: Number(avg.toFixed(2)),
-    };
-  });
+      const avg = values.length ? values.reduce((sum, v) => sum + v, 0) / values.length : 0;
+      return { date, value: Number(avg.toFixed(2)) };
+    });
 }
 
-function getProgressSummary(
-  entries: Entry[],
-  filter: FilterValue
-): {
-  firstValue: number | null;
-  lastValue: number | null;
-  deltaPercent: number | null;
-  recordedDays: number;
-  missingDays: number;
-} {
+function getProgressSummary(entries: Entry[], filter: FilterValue) {
   const byDate = new Map<string, Entry[]>();
 
   for (const entry of clampLast90Days(entries)) {
@@ -192,29 +151,21 @@ function getProgressSummary(
     byDate.get(entry.date)!.push(entry);
   }
 
-  const sortedDates = Array.from(byDate.keys()).sort((a, b) => a.localeCompare(b));
-
-  const relevantDays = sortedDates
+  const relevantDays = Array.from(byDate.keys())
+    .sort((a, b) => a.localeCompare(b))
     .map((date) => {
       const dayEntries = byDate.get(date)!;
       let values: number[] = [];
 
       if (filter === "all") {
-        values = dayEntries
-          .map((entry) => entry.kpm_immobile)
-          .filter((v): v is number => typeof v === "number");
+        values = dayEntries.map((entry) => entry.kpm).filter((v): v is number => typeof v === "number");
       } else {
         const weaponEntry = dayEntries.find((entry) => entry.weapon === filter);
-        if (typeof weaponEntry?.kpm_immobile === "number") {
-          values = [weaponEntry.kpm_immobile];
-        }
+        if (typeof weaponEntry?.kpm === "number") values = [weaponEntry.kpm];
       }
 
       return values.length
-        ? {
-            date,
-            value: Number((values.reduce((sum, v) => sum + v, 0) / values.length).toFixed(2)),
-          }
+        ? { date, value: Number((values.reduce((sum, v) => sum + v, 0) / values.length).toFixed(2)) }
         : null;
     })
     .filter((day): day is { date: string; value: number } => day !== null);
@@ -234,17 +185,10 @@ function getProgressSummary(
 
   const firstValue = relevantDays[0].value;
   const lastValue = relevantDays[relevantDays.length - 1].value;
-
   const deltaPercent =
     firstValue > 0 ? Number((((lastValue - firstValue) / firstValue) * 100).toFixed(1)) : null;
 
-  return {
-    firstValue,
-    lastValue,
-    deltaPercent,
-    recordedDays,
-    missingDays,
-  };
+  return { firstValue, lastValue, deltaPercent, recordedDays, missingDays };
 }
 
 function MiniLineChart({
@@ -271,20 +215,15 @@ function MiniLineChart({
 
   const points = data.map((d, index) => {
     const x =
-      data.length === 1
-        ? width / 2
-        : padding + (index * (width - padding * 2)) / (data.length - 1);
-
+      data.length === 1 ? width / 2 : padding + (index * (width - padding * 2)) / (data.length - 1);
     const y = height - padding - ((d.value - minValue) / range) * (height - padding * 2);
-
     return { x, y, ...d };
   });
 
   const path = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
 
-  const yTicks = 4;
-  const horizontalLines = Array.from({ length: yTicks + 1 }, (_, i) => {
-    const ratio = i / yTicks;
+  const horizontalLines = Array.from({ length: 5 }, (_, i) => {
+    const ratio = i / 4;
     const y = padding + ratio * (height - padding * 2);
     const value = maxValue - ratio * range;
     return { y, value };
@@ -306,14 +245,7 @@ function MiniLineChart({
       >
         {horizontalLines.map((line, idx) => (
           <g key={idx}>
-            <line
-              x1={padding}
-              y1={line.y}
-              x2={width - padding}
-              y2={line.y}
-              className="stroke-border/40"
-              strokeWidth="1"
-            />
+            <line x1={padding} y1={line.y} x2={width - padding} y2={line.y} className="stroke-border/40" strokeWidth="1" />
             <text x={8} y={line.y + 4} className="fill-muted text-[11px]">
               {line.value.toFixed(1)}
             </text>
@@ -330,13 +262,7 @@ function MiniLineChart({
         ))}
 
         {shownLabels.map((p) => (
-          <text
-            key={`label-${p.date}`}
-            x={p.x}
-            y={height - 8}
-            textAnchor="middle"
-            className="fill-muted text-[11px]"
-          >
+          <text key={`label-${p.date}`} x={p.x} y={height - 8} textAnchor="middle" className="fill-muted text-[11px]">
             {formatGraphDate(p.date)}
           </text>
         ))}
@@ -363,10 +289,7 @@ export function DashboardPage() {
     ).padStart(2, "0")}`;
   }, []);
 
-  const last7DaysStatus = useMemo(
-    () => getLast7DaysStatus(entries, todayIso),
-    [entries, todayIso]
-  );
+  const last7DaysStatus = useMemo(() => getLast7DaysStatus(entries, todayIso), [entries, todayIso]);
 
   useEffect(() => {
     if (!session) {
@@ -397,13 +320,14 @@ export function DashboardPage() {
 
     try {
       for (const { key } of WEAPONS) {
-        const payload: Entry = {
+        const value = todayDraft.values[key];
+        if (value === null || value === undefined) continue;
+
+        await apiSaveEntry(session, {
           date: todayDraft.date,
           weapon: key,
-          kpm_immobile: todayDraft.values[key],
-          kpm_cs: null,
-        };
-        await apiSaveEntry(session, payload);
+          kpm: value,
+        });
       }
 
       const r = await apiGetPlayer(session);
@@ -411,7 +335,8 @@ export function DashboardPage() {
       setEntries(next);
       setTodayDraft(entriesToDayDraft(next, todayIso));
       setStatus("Enregistré ✅");
-    } catch {
+    } catch (error) {
+      console.error("apiSaveEntry failed:", error);
       const next = upsertEntriesFromDraft(entries, todayDraft);
       await saveEntriesLocal(session.pseudo, next);
       setEntries(next);
@@ -429,11 +354,7 @@ export function DashboardPage() {
   }
 
   const graphData = useMemo(() => getDailyGraphData(entries, filter), [entries, filter]);
-
-  const progressSummary = useMemo(
-    () => getProgressSummary(entries, filter),
-    [entries, filter]
-  );
+  const progressSummary = useMemo(() => getProgressSummary(entries, filter), [entries, filter]);
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
@@ -441,11 +362,7 @@ export function DashboardPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-4">
             <div className="relative">
-              <img
-                src={profile.avatar}
-                alt={pseudo}
-                className="h-16 w-16 rounded-2xl border border-border/50 object-cover"
-              />
+              <img src={profile.avatar} alt={pseudo} className="h-16 w-16 rounded-2xl border border-border/50 object-cover" />
               <span className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-card bg-cs2" />
             </div>
 
@@ -456,10 +373,7 @@ export function DashboardPage() {
           </div>
 
           <div className="flex gap-2">
-            <button
-              onClick={logout}
-              className="rounded-full border border-border/60 bg-card/40 px-4 py-2 text-sm font-semibold hover:border-cs2/60"
-            >
+            <button onClick={logout} className="rounded-full border border-border/60 bg-card/40 px-4 py-2 text-sm font-semibold hover:border-cs2/60">
               Déconnexion
             </button>
           </div>
@@ -468,18 +382,13 @@ export function DashboardPage() {
         <p className="mt-4 text-sm text-muted">{profile.about}</p>
 
         <div className="mt-4">
-          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
-            7 derniers jours
-          </div>
-
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">7 derniers jours</div>
           <div className="flex flex-wrap gap-2">
             {last7DaysStatus.map((day) => (
               <div
                 key={day.date}
                 className={`rounded-full border px-3 py-1 text-xs font-medium ${
-                  day.hasEntry
-                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                    : "border-border/50 bg-card/30 text-muted"
+                  day.hasEntry ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-border/50 bg-card/30 text-muted"
                 }`}
                 title={`${day.date} — ${day.hasEntry ? "enregistré" : "aucun enregistrement"}`}
               >
@@ -494,17 +403,11 @@ export function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Saisie du jour — {todayIso}</CardTitle>
-            <div className="text-sm text-muted">
-              Renseigne le KPM du jour pour chaque arme, puis enregistre la journée.
-            </div>
+            <div className="text-sm text-muted">Renseigne le KPM du jour pour chaque arme, puis enregistre la journée.</div>
           </CardHeader>
 
           <CardContent>
-            {status ? (
-              <div className="mb-4 rounded-xl2 border border-border/60 bg-bg/40 px-3 py-2 text-sm">
-                {status}
-              </div>
-            ) : null}
+            {status ? <div className="mb-4 rounded-xl2 border border-border/60 bg-bg/40 px-3 py-2 text-sm">{status}</div> : null}
 
             {todayDraft ? (
               <>
@@ -512,7 +415,6 @@ export function DashboardPage() {
                   {WEAPONS.map(({ key, label }) => (
                     <div key={key} className="rounded-xl border border-border/50 bg-bg/20 p-3">
                       <div className="mb-2 text-sm font-semibold">{label}</div>
-
                       <label className="grid gap-1 text-sm">
                         <span className="text-muted">KPM</span>
                         <input
@@ -525,10 +427,7 @@ export function DashboardPage() {
                               prev
                                 ? {
                                     ...prev,
-                                    values: {
-                                      ...prev.values,
-                                      [key]: e.target.value === "" ? null : Number(e.target.value),
-                                    },
+                                    values: { ...prev.values, [key]: e.target.value === "" ? null : Number(e.target.value) },
                                   }
                                 : prev
                             )
@@ -561,9 +460,7 @@ export function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Progression</CardTitle>
-            <div className="text-sm text-muted">
-              Filtre par arme ou vue globale. Aucun tableau brut affiché.
-            </div>
+            <div className="text-sm text-muted">Filtre par arme ou vue globale. Aucun tableau brut affiché.</div>
           </CardHeader>
 
           <CardContent>
@@ -571,9 +468,7 @@ export function DashboardPage() {
               <button
                 onClick={() => setFilter("all")}
                 className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                  filter === "all"
-                    ? "bg-cs2 text-black"
-                    : "border border-border/60 bg-card/40 hover:border-cs2/60"
+                  filter === "all" ? "bg-cs2 text-black" : "border border-border/60 bg-card/40 hover:border-cs2/60"
                 }`}
               >
                 Tous
@@ -584,9 +479,7 @@ export function DashboardPage() {
                   key={key}
                   onClick={() => setFilter(key)}
                   className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                    filter === key
-                      ? "bg-cs2 text-black"
-                      : "border border-border/60 bg-card/40 hover:border-cs2/60"
+                    filter === key ? "bg-cs2 text-black" : "border border-border/60 bg-card/40 hover:border-cs2/60"
                   }`}
                 >
                   {label}
@@ -597,7 +490,6 @@ export function DashboardPage() {
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_240px]">
               <div>
                 <MiniLineChart data={graphData} />
-
                 <div className="mt-4 text-xs text-muted">
                   {filter === "all"
                     ? "Vue Tous : moyenne des KPM renseignés sur la journée."
@@ -620,24 +512,18 @@ export function DashboardPage() {
                           : "text-red-300"
                       }`}
                     >
-                      {progressSummary.deltaPercent === null
-                        ? "N/A"
-                        : `${progressSummary.deltaPercent > 0 ? "+" : ""}${progressSummary.deltaPercent}%`}
+                      {progressSummary.deltaPercent === null ? "N/A" : `${progressSummary.deltaPercent > 0 ? "+" : ""}${progressSummary.deltaPercent}%`}
                     </div>
                   </div>
 
                   <div className="rounded-xl border border-border/40 bg-card/30 p-3">
                     <div className="text-xs uppercase tracking-wide text-muted">Premier relevé</div>
-                    <div className="mt-1 text-sm font-medium">
-                      {progressSummary.firstValue === null ? "N/A" : progressSummary.firstValue}
-                    </div>
+                    <div className="mt-1 text-sm font-medium">{progressSummary.firstValue === null ? "N/A" : progressSummary.firstValue}</div>
                   </div>
 
                   <div className="rounded-xl border border-border/40 bg-card/30 p-3">
                     <div className="text-xs uppercase tracking-wide text-muted">Dernier relevé</div>
-                    <div className="mt-1 text-sm font-medium">
-                      {progressSummary.lastValue === null ? "N/A" : progressSummary.lastValue}
-                    </div>
+                    <div className="mt-1 text-sm font-medium">{progressSummary.lastValue === null ? "N/A" : progressSummary.lastValue}</div>
                   </div>
 
                   <div className="rounded-xl border border-border/40 bg-card/30 p-3">
