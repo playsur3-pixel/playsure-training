@@ -248,7 +248,7 @@ function getProgressSummary(
 
 function MiniLineChart({
   data,
-  height = 260,
+  height = 420,
 }: {
   data: { date: string; value: number }[];
   height?: number;
@@ -258,7 +258,7 @@ function MiniLineChart({
 
   if (!data.length) {
     return (
-      <div className="flex h-[260px] items-center justify-center rounded-2xl border border-border/50 bg-bg/30 text-sm text-muted">
+      <div className="flex h-[420px] items-center justify-center rounded-2xl border border-border/50 bg-bg/30 text-sm text-muted">
         Aucune donnée à afficher.
       </div>
     );
@@ -299,7 +299,7 @@ function MiniLineChart({
     <div className="overflow-x-auto">
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        className="h-[260px] w-full min-w-[700px] rounded-2xl border border-border/50 bg-bg/20"
+        className="h-[420px] w-full min-w-[700px] rounded-2xl border border-border/50 bg-bg/20"
         role="img"
         aria-label="Graphique de progression"
       >
