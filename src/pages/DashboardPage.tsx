@@ -255,7 +255,34 @@ function MiniLineChart({
     </div>
   );
 }
+function formatFrenchDayLabel(dateStr: string) {
+  const date = new Date(`${dateStr}T00:00:00`);
+  return date.toLocaleDateString("fr-FR", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+  });
+}
 
+function getLast7DaysStatus(entries: Entry[], todayIso: string) {
+  const entryDates = new Set(entries.map((e) => e.date));
+  const today = new Date(`${todayIso}T00:00:00`);
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() - (6 - index));
+
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+      d.getDate()
+    ).padStart(2, "0")}`;
+
+    return {
+      date: iso,
+      label: formatFrenchDayLabel(iso),
+      hasEntry: entryDates.has(iso),
+    };
+  });
+}
 export function DashboardPage() {
   const nav = useNavigate();
   const session = useMemo(() => getSession(), []);
@@ -267,12 +294,19 @@ export function DashboardPage() {
   const [filter, setFilter] = useState<FilterValue>("all");
   const [isSaving, setIsSaving] = useState(false);
 
+  
+
   const todayIso = useMemo(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
       now.getDate()
     ).padStart(2, "0")}`;
   }, []);
+
+  const last7DaysStatus = useMemo(
+  () => getLast7DaysStatus(entries, todayIso),
+  [entries, todayIso]
+);
 
   useEffect(() => {
     if (!session) {
@@ -370,6 +404,27 @@ export function DashboardPage() {
         </div>
 
         <p className="mt-4 text-sm text-muted">{profile.about}</p>
+        <div className="mt-4">
+  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+    7 derniers jours
+  </div>
+
+  <div className="flex flex-wrap gap-2">
+    {last7DaysStatus.map((day) => (
+      <div
+        key={day.date}
+        className={`rounded-full border px-3 py-1 text-xs font-medium ${
+          day.hasEntry
+            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+            : "border-border/50 bg-card/30 text-muted"
+        }`}
+        title={`${day.date} — ${day.hasEntry ? "enregistré" : "aucun enregistrement"}`}
+      >
+        {day.label} · {day.hasEntry ? "OK" : "—"}
+      </div>
+    ))}
+  </div>
+</div>
       </Card>
 
       <section className="mt-8">
@@ -390,13 +445,13 @@ export function DashboardPage() {
 
             {todayDraft ? (
               <>
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {WEAPONS.map(({ key, label }) => (
                     <div
                       key={key}
-                      className="rounded-2xl border border-border/50 bg-bg/20 p-4"
+                      className="rounded-xl border border-border/50 bg-bg/20 p-3"
                     >
-                      <div className="mb-3 font-semibold">{label}</div>
+                      <div className="mb-2 text-sm font-semibold">{label}</div><div className="mb-3 font-semibold">{label}</div>
 
                       <div className="grid gap-3">
                         <label className="grid gap-1 text-sm">
@@ -425,7 +480,7 @@ export function DashboardPage() {
                                   : prev
                               )
                             }
-                            className="rounded-xl border border-border/60 bg-card/50 px-3 py-2 outline-none focus:border-cs2/60"
+                            className="rounded-lg border border-border/60 bg-card/50 px-2.5 py-1.5 text-sm outline-none focus:border-cs2/60"
                           />
                         </label>
 
