@@ -155,4 +155,4 @@ vite.config.ts.timestamp-*
 .netlify
 
 #.zip 
-.zip
+*.zip
