@@ -1,18 +1,20 @@
 import { getStore, connectLambda } from "@netlify/blobs";
-import { json, readWhitelist, sha256 } from "./_util.mjs";
+import { json, normalizePseudo, readWhitelist, sha256 } from "./_util.mjs";
 
 export async function handler(event, context) {
   connectLambda(event);
 
-  if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed" });
+  if (event.httpMethod !== "POST") {
+    return json(405, { error: "Method not allowed" });
+  }
 
   const secret = process.env.ADMIN_SECRET;
-  if (!secret) return json(500, { error: "ADMIN_SECRET not configured" });
+  if (!secret) {
+    return json(500, { error: "ADMIN_SECRET not configured" });
+  }
 
   const supplied =
-    event.headers?.["x-admin-secret"] ||
-    event.headers?.["X-Admin-Secret"] ||
-    event.headers?.["x-admin-secret".toLowerCase()];
+    event.headers?.["x-admin-secret"] || event.headers?.["X-Admin-Secret"];
 
   if (String(supplied || "") !== String(secret)) {
     return json(403, { error: "Forbidden" });
@@ -25,7 +27,9 @@ export async function handler(event, context) {
     return json(400, { error: "Invalid JSON" });
   }
 
-  const pseudo = String(body?.pseudo || "").trim();
+  const pseudoRaw = body?.pseudo || body?.username || "";
+  const pseudo = String(pseudoRaw).trim();
+  const pseudoNormalized = normalizePseudo(pseudoRaw);
   const password = String(body?.password || "").trim();
 
   if (pseudo.length < 2 || password.length < 6) {
@@ -33,18 +37,22 @@ export async function handler(event, context) {
   }
 
   const whitelist = readWhitelist();
-  if (!whitelist.has(pseudo)) return json(403, { error: "Pseudo not whitelisted" });
+
+  if (!whitelist.has(pseudoNormalized)) {
+    return json(403, {
+      error: "Pseudo not whitelisted",
+      pseudo_received: pseudo,
+      pseudo_normalized: pseudoNormalized,
+    });
+  }
 
   const store = getStore("psm");
-  await store.set(
-    `auth:${pseudo}`,
-    JSON.stringify({
-      pseudo,
-      password_hash: sha256(password),
-      updated_at: new Date().toISOString(),
-    }),
-    { contentType: "application/json" }
-  );
 
-  return json(200, { ok: true });
+  await store.setJSON(`auth:${pseudoNormalized}`, {
+    pseudo,
+    password_hash: sha256(password),
+    updated_at: new Date().toISOString(),
+  });
+
+  return json(200, { ok: true, pseudo });
 }
