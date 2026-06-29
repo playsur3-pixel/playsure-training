@@ -1,0 +1,222 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #080b10;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: #080b10;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.panel {
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(17, 24, 39, 0.78);
+  border-radius: 1.5rem;
+  padding: 1.25rem;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.24);
+}
+
+.panel-title {
+  margin-top: 0.35rem;
+  font-size: 1.35rem;
+  line-height: 1.1;
+  font-weight: 900;
+  color: white;
+}
+
+.eyebrow {
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: rgb(253 186 116);
+}
+
+.input {
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(0, 0, 0, 0.30);
+  padding: 0.72rem 0.9rem;
+  color: white;
+  outline: none;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.input:focus {
+  border-color: rgb(251 146 60);
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.button-primary,
+.button-secondary,
+.button-danger,
+.tab-button,
+.range-button {
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.875rem;
+  font-weight: 900;
+  transition: opacity 140ms ease, border-color 140ms ease, background 140ms ease, color 140ms ease;
+}
+
+.button-primary {
+  background: rgb(249 115 22);
+  color: black;
+  padding: 0.72rem 1rem;
+}
+
+.button-primary:hover {
+  background: rgb(251 146 60);
+}
+
+.button-secondary {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgb(226 232 240);
+  padding: 0.62rem 0.95rem;
+}
+
+.button-secondary:hover {
+  border-color: rgba(251, 146, 60, 0.55);
+}
+
+.button-danger {
+  border-color: rgba(248, 113, 113, 0.24);
+  background: rgba(127, 29, 29, 0.22);
+  color: rgb(252 165 165);
+  padding: 0.72rem 1rem;
+}
+
+.button-danger:hover {
+  border-color: rgba(248, 113, 113, 0.55);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.tab-button,
+.range-button {
+  border-color: rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgb(203 213 225);
+  padding: 0.58rem 0.95rem;
+}
+
+.tab-button-active,
+.range-button-active {
+  border-color: rgba(251, 146, 60, 0.80);
+  background: rgb(249 115 22);
+  color: black;
+}
+
+.chart-empty {
+  display: grid;
+  min-height: 520px;
+  place-items: center;
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(0, 0, 0, 0.20);
+  color: rgb(148 163 184);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.login-shell {
+  position: relative;
+  isolation: isolate;
+}
+
+.login-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-image:
+    linear-gradient(90deg, rgba(2, 7, 13, 0.32), rgba(2, 7, 13, 0.14) 42%, rgba(2, 7, 13, 0.48)),
+    radial-gradient(circle at 78% 72%, rgba(249, 115, 22, 0.18), transparent 26rem),
+    radial-gradient(circle at 15% 20%, rgba(14, 165, 233, 0.20), transparent 22rem),
+    url("/assets/login-bg.png");
+  background-size: cover;
+  background-position: center;
+  transform: scale(1.01);
+}
+
+.login-noise {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(to bottom, rgba(2, 7, 13, 0.06), rgba(2, 7, 13, 0.42)),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.018) 0px, rgba(255, 255, 255, 0.018) 1px, transparent 1px, transparent 3px);
+  mix-blend-mode: screen;
+  opacity: 0.52;
+}
+
+.login-card::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  z-index: -1;
+  border-radius: calc(2rem - 1px);
+  background: linear-gradient(155deg, rgba(14, 165, 233, 0.16), rgba(15, 23, 42, 0.10) 34%, rgba(249, 115, 22, 0.12));
+}
+
+.login-input {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 14px 40px rgba(0, 0, 0, 0.18);
+}
+
+.login-input:focus {
+  background: rgba(0, 0, 0, 0.48);
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.login-title {
+  color: #f8fafc;
+  text-shadow: 0 18px 70px rgba(0, 0, 0, 0.55);
+}
+
+.login-title span:first-child {
+  background: linear-gradient(135deg, #ffffff 0%, #dff7ff 42%, #84d8ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.login-title span:last-child {
+  background: linear-gradient(135deg, #fff7ed 0%, #fb923c 48%, #f97316 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.login-brand {
+  transform: translateY(0);
+}
+
+@media (max-height: 760px) {
+  .login-brand .login-title {
+    margin-top: 1.25rem;
+  }
+
+  .login-card {
+    margin-top: 1.75rem;
+  }
+}
