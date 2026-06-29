@@ -2,7 +2,6 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   addWeapon,
   clearStoredSession,
-  deleteDay,
   deleteWeapon,
   getMe,
   getStoredSession,
@@ -11,7 +10,7 @@ import {
   saveEntries,
   storeSession
 } from "./api";
-import type { ChartMode, PlayerData, RangeKey, Session, Weapon } from "./types";
+import type { ChartMode, Entry, PlayerData, RangeKey, Session, Weapon } from "./types";
 import {
   buildDraft,
   downloadText,
@@ -35,9 +34,17 @@ type ChartSeries = {
   color: string;
   points: { date: string; value: number }[];
 };
-type WeaponPreset = { id: string; label: string };
 
+type WeaponPreset = { id: string; label: string };
 type WeaponCategory = { id: string; label: string; weapons: WeaponPreset[] };
+
+type DashboardMetrics = {
+  avg7: number | null;
+  avg7Delta: number | null;
+  bestWeapon: string;
+  streak: number;
+  sessions: number;
+};
 
 const WEAPON_CATEGORIES: WeaponCategory[] = [
   {
@@ -106,7 +113,6 @@ const WEAPON_CATEGORIES: WeaponCategory[] = [
   }
 ];
 
-
 function classNames(...items: Array<string | false | null | undefined>) {
   return items.filter(Boolean).join(" ");
 }
@@ -117,6 +123,14 @@ function parseKpmInput(value: string): number | null {
 
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatMetric(value: number | null, digits = 1) {
+  return value === null ? "—" : value.toFixed(digits);
+}
+
+function weaponColor(index: number) {
+  return LINE_COLORS[index % LINE_COLORS.length];
 }
 
 function LoginPage({ onLogin }: { onLogin: (session: Session) => void }) {
@@ -210,7 +224,7 @@ function NoticeBox({ notice }: { notice: NonNullable<Notice> }) {
   return (
     <div
       className={classNames(
-        "mt-5 rounded-2xl border px-4 py-3 text-sm",
+        "rounded-2xl border px-4 py-3 text-sm font-semibold",
         notice.kind === "ok" && "border-emerald-400/30 bg-emerald-500/10 text-emerald-200",
         notice.kind === "error" && "border-red-400/30 bg-red-500/10 text-red-200",
         notice.kind === "neutral" && "border-white/10 bg-white/5 text-slate-300"
@@ -226,15 +240,16 @@ function DashboardPage({ session, onLogout, onUserUpdate }: { session: Session; 
   const [selectedDate, setSelectedDate] = useState(todayIso());
   const [draft, setDraft] = useState<Record<string, number | null>>(() => buildDraft(session.user, todayIso()));
   const [chartMode, setChartMode] = useState<ChartMode>("all");
-  const [range, setRange] = useState<RangeKey>("month");
+  const [range, setRange] = useState<RangeKey>("week");
   const [weaponCategory, setWeaponCategory] = useState(WEAPON_CATEGORIES[0]?.id ?? "");
   const [selectedWeaponId, setSelectedWeaponId] = useState("");
   const [notice, setNotice] = useState<Notice>(null);
   const [saving, setSaving] = useState(false);
 
-  const rangeDays = RANGE_OPTIONS.find((item) => item.key === range)?.days ?? 30;
+  const rangeDays = RANGE_OPTIONS.find((item) => item.key === range)?.days ?? 7;
   const minDate = isoMinusDays(180);
   const maxDate = todayIso();
+  const metrics = useMemo(() => buildDashboardMetrics(user), [user]);
 
   const currentWeaponIds = useMemo(() => new Set(user.weapons.map((weapon) => weapon.id)), [user.weapons]);
   const selectedCategory = WEAPON_CATEGORIES.find((category) => category.id === weaponCategory) ?? WEAPON_CATEGORIES[0];
@@ -275,22 +290,6 @@ function DashboardPage({ session, onLogout, onUserUpdate }: { session: Session; 
       setNotice({ kind: "ok", text: "Saisie enregistrée." });
     } catch (error) {
       setNotice({ kind: "error", text: error instanceof Error ? error.message : "Enregistrement impossible." });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function clearDay() {
-    if (!window.confirm(`Supprimer toutes les saisies du ${selectedDate} ?`)) return;
-    setSaving(true);
-    setNotice(null);
-
-    try {
-      const next = await deleteDay(session.token, selectedDate);
-      updateUser(next);
-      setNotice({ kind: "ok", text: "Journée supprimée." });
-    } catch (error) {
-      setNotice({ kind: "error", text: error instanceof Error ? error.message : "Suppression impossible." });
     } finally {
       setSaving(false);
     }
@@ -338,93 +337,103 @@ function DashboardPage({ session, onLogout, onUserUpdate }: { session: Session; 
   }
 
   return (
-    <main className="min-h-dvh bg-[#080b10] text-slate-100">
-      <header className="border-b border-white/10 bg-[#0b111b]/90 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 md:flex-row md:items-center md:justify-between">
+    <main className="dashboard-shell min-h-dvh text-slate-100">
+      <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-6 lg:px-8">
+        <header className="dashboard-header">
           <div className="flex items-center gap-4">
-            <img src="/assets/avatar.png" alt="playSURE" className="h-12 w-12 rounded-2xl border border-orange-400/30 object-cover" />
+            <img src="/assets/avatar.png" alt="playSURE" className="h-12 w-12 rounded-2xl border border-orange-400/35 object-cover shadow-[0_0_24px_rgba(249,115,22,0.18)]" />
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-orange-300">Training dashboard</p>
-              <h1 className="text-xl font-black text-white">{user.displayName || user.username}</h1>
+              <p className="eyebrow">Training dashboard</p>
+              <h1 className="text-xl font-black tracking-[-0.04em] text-white">{user.displayName || user.username}</h1>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button onClick={exportJson} className="button-secondary">Export JSON</button>
-            <button onClick={exportCsv} className="button-secondary">Export CSV</button>
-            <button onClick={disconnect} className="button-secondary">Déconnexion</button>
-          </div>
-        </div>
-      </header>
 
-      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 xl:grid-cols-[420px_minmax(0,1fr)]">
-        <section className="grid gap-6">
-          <form onSubmit={submitEntries} className="panel">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="eyebrow">Saisie KPM</p>
-                <h2 className="panel-title">Journée</h2>
-              </div>
-              <label className="grid gap-1 text-xs font-semibold text-slate-400">
-                Date
+          <div className="flex flex-wrap justify-end gap-2">
+            <button onClick={exportJson} className="button-secondary compact-button" type="button">JSON</button>
+            <button onClick={exportCsv} className="button-secondary compact-button" type="button">CSV</button>
+            <button onClick={disconnect} className="button-secondary compact-button" type="button">Déconnexion</button>
+          </div>
+        </header>
+
+        <section className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label="Moyenne 7j"
+            value={formatMetric(metrics.avg7)}
+            suffix={metrics.avg7Delta === null ? "" : `${metrics.avg7Delta >= 0 ? "+" : ""}${metrics.avg7Delta.toFixed(1)}`}
+            suffixKind={metrics.avg7Delta === null ? "neutral" : metrics.avg7Delta >= 0 ? "good" : "bad"}
+          />
+          <MetricCard label="Meilleure arme" value={metrics.bestWeapon} />
+          <MetricCard label="Streak" value={`${metrics.streak} jour${metrics.streak > 1 ? "s" : ""}`} />
+          <MetricCard label="Sessions totales" value={String(metrics.sessions)} />
+        </section>
+
+        <div className="mt-5 grid gap-5 xl:grid-cols-[390px_minmax(0,1fr)]">
+          <section className="grid gap-5">
+            <form onSubmit={submitEntries} className="dashboard-card">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="eyebrow">Saisie KPM</p>
+                  <h2 className="panel-title">Journée</h2>
+                </div>
                 <input
                   type="date"
                   value={selectedDate}
                   min={minDate}
                   max={maxDate}
                   onChange={(event) => setSelectedDate(event.target.value)}
-                  className="input w-[150px]"
+                  className="input date-input"
+                  aria-label="Date de saisie"
                 />
-              </label>
-            </div>
+              </div>
 
-            <div className="mt-5 grid gap-3">
-              {user.weapons.map((weapon) => (
-                <div key={weapon.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <div>
-                      <div className="font-bold text-white">{weapon.label}</div>
+              <div className="mt-5 grid gap-2">
+                {user.weapons.map((weapon, index) => {
+                  const value = draft[weapon.id];
+                  const color = weaponColor(index);
+                  return (
+                    <div key={weapon.id} className={classNames("weapon-row", value !== null && "weapon-row-active")}>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+                        <span className="truncate font-black text-white">{weapon.label}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={value ?? ""}
+                          onChange={(event) =>
+                            setDraft((previous) => ({
+                              ...previous,
+                              [weapon.id]: parseKpmInput(event.target.value)
+                            }))
+                          }
+                          className="kpm-input"
+                          aria-label={`KPM ${weapon.label}`}
+                        />
+                        {!weapon.base ? (
+                          <button type="button" onClick={() => removeWeapon(weapon)} className="delete-weapon-button" aria-label={`Supprimer ${weapon.label}`}>
+                            Supprimer
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
-                    {!weapon.base ? (
-                      <button type="button" onClick={() => removeWeapon(weapon)} className="text-xs font-bold text-red-300 hover:text-red-200">
-                        Supprimer
-                      </button>
-                    ) : null}
-                  </div>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={draft[weapon.id] ?? ""}
-                    onChange={(event) =>
-                      setDraft((previous) => ({
-                        ...previous,
-                        [weapon.id]: parseKpmInput(event.target.value)
-                      }))
-                    }
-                    className="input w-full"
-                  />
-                </div>
-              ))}
-            </div>
+                  );
+                })}
+              </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <button disabled={saving} type="submit" className="button-primary">
+              <button disabled={saving} type="submit" className="button-primary mt-5 w-full">
                 {saving ? "Enregistrement..." : "Enregistrer"}
               </button>
-              <button disabled={saving} type="button" onClick={clearDay} className="button-danger">
-                Supprimer la journée
-              </button>
-            </div>
 
-            {notice ? <NoticeBox notice={notice} /> : null}
-          </form>
+              {notice ? <div className="mt-4"><NoticeBox notice={notice} /></div> : null}
+            </form>
 
-          <form onSubmit={submitWeapon} className="panel">
-            <p className="eyebrow">Profil</p>
-            <h2 className="panel-title">Ajouter une arme</h2>
+            <form onSubmit={submitWeapon} className="dashboard-card">
+              <p className="eyebrow">Profil</p>
+              <h2 className="panel-title">Ajouter une arme</h2>
 
-            <div className="mt-4 grid gap-3">
-              <label className="grid gap-2 text-sm font-semibold text-slate-300">
-                Type
+              <div className="mt-4 grid gap-3">
                 <select
                   value={weaponCategory}
                   onChange={(event) => {
@@ -432,6 +441,7 @@ function DashboardPage({ session, onLogout, onUserUpdate }: { session: Session; 
                     setSelectedWeaponId("");
                   }}
                   className="input w-full"
+                  aria-label="Type d'arme"
                 >
                   {WEAPON_CATEGORIES.map((category) => (
                     <option key={category.id} value={category.id}>
@@ -439,15 +449,13 @@ function DashboardPage({ session, onLogout, onUserUpdate }: { session: Session; 
                     </option>
                   ))}
                 </select>
-              </label>
 
-              <label className="grid gap-2 text-sm font-semibold text-slate-300">
-                Arme
                 <select
                   value={selectedPresetWeapon?.id ?? ""}
                   onChange={(event) => setSelectedWeaponId(event.target.value)}
                   className="input w-full"
                   disabled={!availablePresetWeapons.length}
+                  aria-label="Arme"
                 >
                   {availablePresetWeapons.length ? (
                     availablePresetWeapons.map((weapon) => (
@@ -459,83 +467,77 @@ function DashboardPage({ session, onLogout, onUserUpdate }: { session: Session; 
                     <option value="">Toutes les armes de ce type sont déjà ajoutées</option>
                   )}
                 </select>
-              </label>
 
-              <button className="button-primary w-full" type="submit" disabled={!selectedPresetWeapon}>
-                Ajouter
-              </button>
+                <button className="button-primary w-full" type="submit" disabled={!selectedPresetWeapon}>
+                  Ajouter
+                </button>
+              </div>
+            </form>
+          </section>
+
+          <section className="dashboard-card min-w-0">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <p className="eyebrow">Graphique</p>
+                <h2 className="panel-title">Progression KPM</h2>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setChartMode("all")} className={classNames("tab-button", chartMode === "all" && "tab-button-active")} type="button">
+                  Tous
+                </button>
+                <button onClick={() => setChartMode("global")} className={classNames("tab-button", chartMode === "global" && "tab-button-active")} type="button">
+                  Global
+                </button>
+              </div>
             </div>
-          </form>
 
-          <StatsCard user={user} />
-        </section>
-
-        <section className="panel min-w-0">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <p className="eyebrow">Graphique</p>
-              <h2 className="panel-title">Progression KPM</h2>
-              <p className="mt-2 text-sm text-slate-400">Échelle Y dynamique : minimum enregistré -15 KPM, maximum enregistré +15 KPM.</p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              {RANGE_OPTIONS.map((item) => (
+                <button key={item.key} onClick={() => setRange(item.key)} className={classNames("range-button", range === item.key && "range-button-active")} type="button">
+                  {item.label}
+                </button>
+              ))}
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button onClick={() => setChartMode("all")} className={classNames("tab-button", chartMode === "all" && "tab-button-active")} type="button">
-                Tous
-              </button>
-              <button onClick={() => setChartMode("global")} className={classNames("tab-button", chartMode === "global" && "tab-button-active")} type="button">
-                Global
-              </button>
+
+            <div className="mt-6">
+              <KpmChart user={user} mode={chartMode} rangeDays={rangeDays} />
             </div>
-          </div>
-
-          <div className="mt-5 flex flex-wrap gap-2">
-            {RANGE_OPTIONS.map((item) => (
-              <button key={item.key} onClick={() => setRange(item.key)} className={classNames("range-button", range === item.key && "range-button-active")} type="button">
-                {item.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-6">
-            <KpmChart user={user} mode={chartMode} rangeDays={rangeDays} />
-          </div>
-        </section>
+          </section>
+        </div>
       </div>
     </main>
   );
 }
 
-function StatsCard({ user }: { user: PlayerData }) {
-  const activeDays = new Set(user.entries.map((entry) => entry.date)).size;
-  const values = user.entries.map((entry) => entry.kpm);
-  const avg = mean(values);
-  const best = values.length ? Math.max(...values) : null;
-
+function MetricCard({ label, value, suffix, suffixKind = "neutral" }: { label: string; value: string; suffix?: string; suffixKind?: "good" | "bad" | "neutral" }) {
   return (
-    <section className="panel">
-      <p className="eyebrow">Résumé 180 jours</p>
-      <div className="mt-4 grid grid-cols-3 gap-3">
-        <Metric label="Jours" value={String(activeDays)} />
-        <Metric label="Moyenne" value={avg === null ? "—" : avg.toFixed(1)} />
-        <Metric label="Max" value={best === null ? "—" : best.toFixed(1)} />
+    <article className="metric-card">
+      <p className="text-sm font-semibold text-slate-400">{label}</p>
+      <div className="mt-2 flex items-end gap-2">
+        <strong className="text-2xl font-black leading-none tracking-[-0.05em] text-white">{value}</strong>
+        {suffix ? (
+          <span
+            className={classNames(
+              "text-sm font-black",
+              suffixKind === "good" && "text-emerald-300",
+              suffixKind === "bad" && "text-red-300",
+              suffixKind === "neutral" && "text-slate-400"
+            )}
+          >
+            {suffix}
+          </span>
+        ) : null}
       </div>
-    </section>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-      <div className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-1 text-lg font-black text-white">{value}</div>
-    </div>
+    </article>
   );
 }
 
 function KpmChart({ user, mode, rangeDays }: { user: PlayerData; mode: ChartMode; rangeDays: number }) {
   const { series, dates, yMin, yMax } = useMemo(() => buildChartData(user, mode, rangeDays), [user, mode, rangeDays]);
   const width = 1100;
-  const height = 520;
-  const padding = { top: 28, right: 28, bottom: 46, left: 58 };
+  const height = 440;
+  const padding = { top: 28, right: 28, bottom: 44, left: 58 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
   const range = yMax - yMin || 1;
@@ -569,8 +571,8 @@ function KpmChart({ user, mode, rangeDays }: { user: PlayerData; mode: ChartMode
 
   return (
     <div>
-      <div className="overflow-x-auto rounded-[1.5rem] border border-white/10 bg-black/20">
-        <svg viewBox={`0 0 ${width} ${height}`} className="h-[520px] min-w-[820px] w-full" role="img" aria-label="Courbe KPM">
+      <div className="overflow-x-auto rounded-[1.25rem] border border-white/10 bg-black/20">
+        <svg viewBox={`0 0 ${width} ${height}`} className="h-[440px] min-w-[780px] w-full" role="img" aria-label="Courbe KPM">
           {gridLines.map((line) => (
             <g key={line.y}>
               <line x1={padding.left} x2={width - padding.right} y1={line.y} y2={line.y} stroke="rgba(255,255,255,0.10)" />
@@ -588,10 +590,10 @@ function KpmChart({ user, mode, rangeDays }: { user: PlayerData; mode: ChartMode
             const polyline = item.points.map((point) => `${xFor(point.date)},${yFor(point.value)}`).join(" ");
             return (
               <g key={item.id}>
-                {item.points.length > 1 ? <polyline points={polyline} fill="none" stroke={item.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /> : null}
+                {item.points.length > 1 ? <polyline points={polyline} fill="none" stroke={item.color} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" /> : null}
                 {item.points.map((point) => (
                   <g key={`${item.id}-${point.date}`}>
-                    <circle cx={xFor(point.date)} cy={yFor(point.value)} r="4" fill={item.color} />
+                    <circle cx={xFor(point.date)} cy={yFor(point.value)} r="4.5" fill={item.color} stroke="rgba(2,6,12,0.92)" strokeWidth="2" />
                     <title>{`${item.label} · ${formatDateFr(point.date)} · ${point.value.toFixed(1)} KPM`}</title>
                   </g>
                 ))}
@@ -601,9 +603,9 @@ function KpmChart({ user, mode, rangeDays }: { user: PlayerData; mode: ChartMode
         </svg>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-wrap gap-3">
         {series.map((item) => (
-          <div key={item.id} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
+          <div key={item.id} className="inline-flex items-center gap-2 text-sm font-bold text-slate-300">
             <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
             {item.label}
           </div>
@@ -613,10 +615,47 @@ function KpmChart({ user, mode, rangeDays }: { user: PlayerData; mode: ChartMode
   );
 }
 
+function buildDashboardMetrics(user: PlayerData): DashboardMetrics {
+  const entries = entriesForRange(user.entries, 180);
+  const entries7 = entriesForRange(user.entries, 7);
+  const cutoff14 = isoMinusDays(14);
+  const cutoff7 = isoMinusDays(7);
+  const previous7 = user.entries.filter((entry) => entry.date >= cutoff14 && entry.date < cutoff7);
+
+  const avg7 = mean(entries7.map((entry) => entry.kpm));
+  const previousAvg7 = mean(previous7.map((entry) => entry.kpm));
+  const avg7Delta = avg7 === null || previousAvg7 === null ? null : avg7 - previousAvg7;
+
+  const activeDays = new Set(entries.map((entry) => entry.date));
+  const sessions = activeDays.size;
+
+  let cursor = new Date();
+  cursor.setHours(0, 0, 0, 0);
+  let streak = 0;
+  while (activeDays.has(todayIso(cursor))) {
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  let bestWeapon = "—";
+  let bestAverage = -Infinity;
+
+  for (const weapon of user.weapons) {
+    const values = entries.filter((entry) => entry.weaponId === weapon.id).map((entry) => entry.kpm);
+    const average = mean(values);
+    if (average !== null && average > bestAverage) {
+      bestAverage = average;
+      bestWeapon = getWeaponLabel(user.weapons, weapon.id);
+    }
+  }
+
+  return { avg7, avg7Delta, bestWeapon, streak, sessions };
+}
+
 function buildChartData(user: PlayerData, mode: ChartMode, rangeDays: number) {
   const entries = entriesForRange(user.entries, rangeDays);
   const dates = [...new Set(entries.map((entry) => entry.date))].sort((a, b) => a.localeCompare(b));
-  const byDate = new Map<string, typeof entries>();
+  const byDate = new Map<string, Entry[]>();
 
   for (const date of dates) byDate.set(date, []);
   for (const entry of entries) byDate.get(entry.date)?.push(entry);
@@ -642,7 +681,7 @@ function buildChartData(user: PlayerData, mode: ChartMode, rangeDays: number) {
     series = user.weapons.map((weapon, index) => ({
       id: weapon.id,
       label: weapon.label,
-      color: LINE_COLORS[index % LINE_COLORS.length],
+      color: weaponColor(index),
       points: dates
         .map((date) => {
           const entry = (byDate.get(date) || []).find((item) => item.weaponId === weapon.id);

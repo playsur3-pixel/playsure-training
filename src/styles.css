@@ -20,24 +20,57 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
+.dashboard-shell {
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(14, 165, 233, 0.08), transparent 30rem),
+    radial-gradient(circle at 86% 18%, rgba(249, 115, 22, 0.07), transparent 24rem),
+    linear-gradient(180deg, #0a0e15 0%, #070a0f 100%);
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(15, 18, 25, 0.84);
+  border-radius: 1.25rem;
+  padding: 1.15rem 1.35rem;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(18px);
+}
+
+.dashboard-card,
 .panel {
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  background: rgba(17, 24, 39, 0.78);
-  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(19, 22, 30, 0.86);
+  border-radius: 1.35rem;
   padding: 1.25rem;
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.24);
 }
 
+.metric-card {
+  min-height: 5rem;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(25, 27, 34, 0.82);
+  border-radius: 0.9rem;
+  padding: 1rem;
+  box-shadow: 0 22px 50px rgba(0, 0, 0, 0.18);
+}
+
 .panel-title {
-  margin-top: 0.35rem;
+  margin-top: 0.2rem;
   font-size: 1.35rem;
   line-height: 1.1;
   font-weight: 900;
   color: white;
+  letter-spacing: -0.045em;
 }
 
 .eyebrow {
@@ -49,18 +82,75 @@ input {
 }
 
 .input {
-  border-radius: 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  background: rgba(0, 0, 0, 0.30);
+  border-radius: 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  background: rgba(0, 0, 0, 0.28);
   padding: 0.72rem 0.9rem;
   color: white;
   outline: none;
-  transition: border-color 140ms ease, background 140ms ease;
+  transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
 }
 
 .input:focus {
   border-color: rgb(251 146 60);
   background: rgba(0, 0, 0, 0.42);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.10);
+}
+
+.date-input {
+  width: 10.8rem;
+  font-weight: 900;
+}
+
+.weapon-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.85rem;
+  min-height: 4.2rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(7, 10, 16, 0.72);
+  border-radius: 0.9rem;
+  padding: 0.85rem 0.9rem;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.weapon-row-active {
+  border-color: rgba(56, 189, 248, 0.60);
+  background: rgba(14, 64, 112, 0.22);
+}
+
+.kpm-input {
+  width: 5.7rem;
+  border-radius: 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(0, 0, 0, 0.30);
+  padding: 0.62rem 0.65rem;
+  color: white;
+  font-weight: 900;
+  text-align: center;
+  outline: none;
+  transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+
+.kpm-input:focus {
+  border-color: rgb(56, 189, 248);
+  background: rgba(0, 0, 0, 0.46);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.10);
+}
+
+.delete-weapon-button {
+  border: 0;
+  background: transparent;
+  color: rgb(252 165 165);
+  padding: 0.35rem 0.1rem;
+  font-size: 0.72rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.delete-weapon-button:hover {
+  color: rgb(254 202 202);
 }
 
 .button-primary,
@@ -72,13 +162,13 @@ input {
   border: 1px solid transparent;
   font-size: 0.875rem;
   font-weight: 900;
-  transition: opacity 140ms ease, border-color 140ms ease, background 140ms ease, color 140ms ease;
+  transition: opacity 140ms ease, border-color 140ms ease, background 140ms ease, color 140ms ease, transform 140ms ease;
 }
 
 .button-primary {
-  background: rgb(249 115 22);
+  background: rgb(232 126 35);
   color: black;
-  padding: 0.72rem 1rem;
+  padding: 0.78rem 1rem;
 }
 
 .button-primary:hover {
@@ -86,14 +176,18 @@ input {
 }
 
 .button-secondary {
-  border-color: rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.045);
   color: rgb(226 232 240);
   padding: 0.62rem 0.95rem;
 }
 
 .button-secondary:hover {
   border-color: rgba(251, 146, 60, 0.55);
+}
+
+.compact-button {
+  min-width: 5.25rem;
 }
 
 .button-danger {
@@ -114,29 +208,29 @@ button:disabled {
 
 .tab-button,
 .range-button {
-  border-color: rgba(255, 255, 255, 0.10);
-  background: rgba(255, 255, 255, 0.05);
-  color: rgb(203 213 225);
-  padding: 0.58rem 0.95rem;
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.045);
+  color: rgb(226 232 240);
+  padding: 0.64rem 1.05rem;
 }
 
 .tab-button-active,
 .range-button-active {
-  border-color: rgba(251, 146, 60, 0.80);
-  background: rgb(249 115 22);
+  border-color: rgba(251, 146, 60, 0.82);
+  background: rgb(232 126 35);
   color: black;
 }
 
 .chart-empty {
   display: grid;
-  min-height: 520px;
+  min-height: 440px;
   place-items: center;
-  border-radius: 1.5rem;
+  border-radius: 1.25rem;
   border: 1px solid rgba(255, 255, 255, 0.10);
   background: rgba(0, 0, 0, 0.20);
   color: rgb(148 163 184);
   font-size: 0.95rem;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .login-shell {
@@ -209,6 +303,26 @@ button:disabled {
 
 .login-brand {
   transform: translateY(0);
+}
+
+@media (max-width: 720px) {
+  .dashboard-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .weapon-row {
+    grid-template-columns: 1fr;
+  }
+
+  .kpm-input {
+    width: 100%;
+  }
+
+  .delete-weapon-button {
+    padding-left: 0.6rem;
+    padding-right: 0.6rem;
+  }
 }
 
 @media (max-height: 760px) {

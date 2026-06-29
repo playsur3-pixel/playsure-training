@@ -10,3 +10,5 @@ server/data/sessions.json
 //ignore scripts
 *.ps1
 scripts/*.ps1
+
+README.md
