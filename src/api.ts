@@ -100,11 +100,11 @@ export async function deleteDay(token: string, date: string): Promise<PlayerData
   return data.user;
 }
 
-export async function addWeapon(token: string, label: string): Promise<PlayerData> {
+export async function addWeapon(token: string, label: string, id?: string): Promise<PlayerData> {
   const data = await request<{ ok: true; user: PlayerData }>("/api/weapons", {
     method: "POST",
     headers: authHeaders(token),
-    body: JSON.stringify({ label })
+    body: JSON.stringify({ label, id })
   });
   return data.user;
 }

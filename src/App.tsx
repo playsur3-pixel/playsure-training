@@ -35,6 +35,77 @@ type ChartSeries = {
   color: string;
   points: { date: string; value: number }[];
 };
+type WeaponPreset = { id: string; label: string };
+
+type WeaponCategory = { id: string; label: string; weapons: WeaponPreset[] };
+
+const WEAPON_CATEGORIES: WeaponCategory[] = [
+  {
+    id: "pistols",
+    label: "Pistolets",
+    weapons: [
+      { id: "glock_18", label: "Glock-18" },
+      { id: "usp_s", label: "USP-S" },
+      { id: "p2000", label: "P2000" },
+      { id: "dual_berettas", label: "Dual Berettas" },
+      { id: "p250", label: "P250" },
+      { id: "five_seven", label: "Five-SeveN" },
+      { id: "tec_9", label: "Tec-9" },
+      { id: "cz75_auto", label: "CZ75-Auto" },
+      { id: "desert_eagle", label: "Desert Eagle" },
+      { id: "r8_revolver", label: "R8 Revolver" }
+    ]
+  },
+  {
+    id: "smg",
+    label: "SMG",
+    weapons: [
+      { id: "mac_10", label: "MAC-10" },
+      { id: "mp9", label: "MP9" },
+      { id: "mp7", label: "MP7" },
+      { id: "mp5_sd", label: "MP5-SD" },
+      { id: "ump_45", label: "UMP-45" },
+      { id: "p90", label: "P90" },
+      { id: "pp_bizon", label: "PP-Bizon" }
+    ]
+  },
+  {
+    id: "rifles",
+    label: "Fusils",
+    weapons: [
+      { id: "galil_ar", label: "Galil AR" },
+      { id: "famas", label: "FAMAS" },
+      { id: "ak47", label: "AK47" },
+      { id: "m4a4", label: "M4A4" },
+      { id: "m4a1s", label: "M4A1-S" },
+      { id: "aug", label: "AUG" },
+      { id: "sg_553", label: "SG 553" }
+    ]
+  },
+  {
+    id: "snipers",
+    label: "Snipers",
+    weapons: [
+      { id: "ssg_08", label: "SSG 08" },
+      { id: "awp", label: "AWP" },
+      { id: "scar_20", label: "SCAR-20" },
+      { id: "g3sg1", label: "G3SG1" }
+    ]
+  },
+  {
+    id: "heavy",
+    label: "Lourdes",
+    weapons: [
+      { id: "nova", label: "Nova" },
+      { id: "xm1014", label: "XM1014" },
+      { id: "mag_7", label: "MAG-7" },
+      { id: "sawed_off", label: "Sawed-Off" },
+      { id: "m249", label: "M249" },
+      { id: "negev", label: "Negev" }
+    ]
+  }
+];
+
 
 function classNames(...items: Array<string | false | null | undefined>) {
   return items.filter(Boolean).join(" ");
@@ -156,7 +227,8 @@ function DashboardPage({ session, onLogout, onUserUpdate }: { session: Session; 
   const [draft, setDraft] = useState<Record<string, number | null>>(() => buildDraft(session.user, todayIso()));
   const [chartMode, setChartMode] = useState<ChartMode>("all");
   const [range, setRange] = useState<RangeKey>("month");
-  const [newWeapon, setNewWeapon] = useState("");
+  const [weaponCategory, setWeaponCategory] = useState(WEAPON_CATEGORIES[0]?.id ?? "");
+  const [selectedWeaponId, setSelectedWeaponId] = useState("");
   const [notice, setNotice] = useState<Notice>(null);
   const [saving, setSaving] = useState(false);
 
@@ -164,9 +236,28 @@ function DashboardPage({ session, onLogout, onUserUpdate }: { session: Session; 
   const minDate = isoMinusDays(180);
   const maxDate = todayIso();
 
+  const currentWeaponIds = useMemo(() => new Set(user.weapons.map((weapon) => weapon.id)), [user.weapons]);
+  const selectedCategory = WEAPON_CATEGORIES.find((category) => category.id === weaponCategory) ?? WEAPON_CATEGORIES[0];
+  const availablePresetWeapons = useMemo(
+    () => selectedCategory.weapons.filter((weapon) => !currentWeaponIds.has(weapon.id)),
+    [currentWeaponIds, selectedCategory]
+  );
+  const selectedPresetWeapon = availablePresetWeapons.find((weapon) => weapon.id === selectedWeaponId) ?? availablePresetWeapons[0] ?? null;
+
   useEffect(() => {
     setDraft(buildDraft(user, selectedDate));
   }, [user, selectedDate]);
+
+  useEffect(() => {
+    if (!selectedPresetWeapon) {
+      setSelectedWeaponId("");
+      return;
+    }
+
+    if (selectedWeaponId !== selectedPresetWeapon.id) {
+      setSelectedWeaponId(selectedPresetWeapon.id);
+    }
+  }, [selectedPresetWeapon, selectedWeaponId]);
 
   function updateUser(next: PlayerData) {
     setUser(next);
@@ -207,15 +298,13 @@ function DashboardPage({ session, onLogout, onUserUpdate }: { session: Session; 
 
   async function submitWeapon(event: FormEvent) {
     event.preventDefault();
-    const label = newWeapon.trim();
-    if (label.length < 2) return;
+    if (!selectedPresetWeapon) return;
     setNotice(null);
 
     try {
-      const next = await addWeapon(session.token, label);
+      const next = await addWeapon(session.token, selectedPresetWeapon.label, selectedPresetWeapon.id);
       updateUser(next);
-      setNewWeapon("");
-      setNotice({ kind: "ok", text: `Arme ajoutée: ${label}.` });
+      setNotice({ kind: "ok", text: `Arme ajoutée: ${selectedPresetWeapon.label}.` });
     } catch (error) {
       setNotice({ kind: "error", text: error instanceof Error ? error.message : "Ajout impossible." });
     }
@@ -223,7 +312,7 @@ function DashboardPage({ session, onLogout, onUserUpdate }: { session: Session; 
 
   async function removeWeapon(weapon: Weapon) {
     if (weapon.base) return;
-    if (!window.confirm(`Supprimer ${weapon.label} et ses anciennes saisies ?`)) return;
+    if (!window.confirm(`Supprimer ${weapon.label} du profil ? Les saisies de cette arme seront supprimées, les autres armes restent intactes.`)) return;
 
     try {
       const next = await deleteWeapon(session.token, weapon.id);
@@ -313,7 +402,6 @@ function DashboardPage({ session, onLogout, onUserUpdate }: { session: Session; 
                       }))
                     }
                     className="input w-full"
-                    placeholder="ex: 72.5 ou 72,5"
                   />
                 </div>
               ))}
@@ -334,12 +422,49 @@ function DashboardPage({ session, onLogout, onUserUpdate }: { session: Session; 
           <form onSubmit={submitWeapon} className="panel">
             <p className="eyebrow">Profil</p>
             <h2 className="panel-title">Ajouter une arme</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-400">
-              M4A4, M4A1-S et AK47 restent les champs de base. Les armes ajoutées ici sont stockées dans le JSON du joueur.
-            </p>
-            <div className="mt-4 flex gap-2">
-              <input value={newWeapon} onChange={(event) => setNewWeapon(event.target.value)} className="input min-w-0 flex-1" placeholder="Glock, USP-S, Famas..." />
-              <button className="button-primary whitespace-nowrap" type="submit">Ajouter</button>
+
+            <div className="mt-4 grid gap-3">
+              <label className="grid gap-2 text-sm font-semibold text-slate-300">
+                Type
+                <select
+                  value={weaponCategory}
+                  onChange={(event) => {
+                    setWeaponCategory(event.target.value);
+                    setSelectedWeaponId("");
+                  }}
+                  className="input w-full"
+                >
+                  {WEAPON_CATEGORIES.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="grid gap-2 text-sm font-semibold text-slate-300">
+                Arme
+                <select
+                  value={selectedPresetWeapon?.id ?? ""}
+                  onChange={(event) => setSelectedWeaponId(event.target.value)}
+                  className="input w-full"
+                  disabled={!availablePresetWeapons.length}
+                >
+                  {availablePresetWeapons.length ? (
+                    availablePresetWeapons.map((weapon) => (
+                      <option key={weapon.id} value={weapon.id}>
+                        {weapon.label}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">Toutes les armes de ce type sont déjà ajoutées</option>
+                  )}
+                </select>
+              </label>
+
+              <button className="button-primary w-full" type="submit" disabled={!selectedPresetWeapon}>
+                Ajouter
+              </button>
             </div>
           </form>
 

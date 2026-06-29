@@ -116,7 +116,7 @@ async function handleDeleteWeapon(event, weaponIdRaw) {
   if (weapon.base) return jsonError(400, "Impossible de supprimer une arme de base.");
 
   training.weapons = training.weapons.filter((item) => item.id !== weaponId);
-  training.entries = training.entries.filter((entry) => entry.weaponId !== weaponId);
+  training.entries = training.entries.filter((entry) => cleanWeaponId(entry.weaponId) !== weaponId);
 
   const nextTraining = await writeTraining(credentials.username, training);
   return json(200, { ok: true, user: publicUser(credentials, nextTraining) });
@@ -133,13 +133,7 @@ async function handleEntries(event) {
   const { credentials, training } = await authenticate(event);
   const weaponById = new Map(training.weapons.map((weapon) => [weapon.id, weapon]));
   const currentTime = timeIso();
-
-  const nextEntries = training.entries.filter((entry) => {
-    if (entry.date !== date) return true;
-    return !(entry.weaponId in values);
-  });
-
-  let savedCount = 0;
+  const parsedEntries = [];
 
   for (const [rawWeaponId, rawKpm] of Object.entries(values)) {
     const weaponId = cleanWeaponId(rawWeaponId);
@@ -153,21 +147,26 @@ async function handleEntries(event) {
       return jsonError(400, `KPM invalide pour ${weapon.label}.`);
     }
 
-    nextEntries.push({
+    parsedEntries.push({
       date,
       time: currentTime,
       weaponId,
       weapon: weapon.label,
       kpm: Number(kpm.toFixed(2))
     });
-    savedCount += 1;
   }
 
-  if (savedCount === 0) {
+  if (!parsedEntries.length) {
     return jsonError(400, "Aucun KPM valide a enregistrer.");
   }
 
-  training.entries = nextEntries;
+  const replacedWeaponIds = new Set(parsedEntries.map((entry) => entry.weaponId));
+  const nextEntries = training.entries.filter((entry) => {
+    if (entry.date !== date) return true;
+    return !replacedWeaponIds.has(cleanWeaponId(entry.weaponId));
+  });
+
+  training.entries = [...nextEntries, ...parsedEntries];
   const nextTraining = await writeTraining(credentials.username, training);
   return json(200, { ok: true, user: publicUser(credentials, nextTraining) });
 }
