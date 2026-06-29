@@ -19,6 +19,16 @@ function routeFromEvent(event) {
   return normalized.replace(/\/+/g, "/");
 }
 
+function parseKpmValue(value) {
+  if (value === null || value === undefined || value === "") return null;
+
+  const normalized = String(value).trim().replace(",", ".");
+  if (!normalized) return null;
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
 async function authenticate(event) {
   const token = readBearer(event);
   if (!token) {
@@ -129,13 +139,16 @@ async function handleEntries(event) {
     return !(entry.weaponId in values);
   });
 
+  let savedCount = 0;
+
   for (const [rawWeaponId, rawKpm] of Object.entries(values)) {
     const weaponId = cleanWeaponId(rawWeaponId);
     const weapon = weaponById.get(weaponId);
     if (!weapon) continue;
-    if (rawKpm === null || rawKpm === undefined || rawKpm === "") continue;
 
-    const kpm = Number(rawKpm);
+    const kpm = parseKpmValue(rawKpm);
+    if (kpm === null) continue;
+
     if (!Number.isFinite(kpm) || kpm < 0 || kpm > 1000) {
       return jsonError(400, `KPM invalide pour ${weapon.label}.`);
     }
@@ -147,6 +160,11 @@ async function handleEntries(event) {
       weapon: weapon.label,
       kpm: Number(kpm.toFixed(2))
     });
+    savedCount += 1;
+  }
+
+  if (savedCount === 0) {
+    return jsonError(400, "Aucun KPM valide a enregistrer.");
   }
 
   training.entries = nextEntries;

@@ -40,6 +40,14 @@ function classNames(...items: Array<string | false | null | undefined>) {
   return items.filter(Boolean).join(" ");
 }
 
+function parseKpmInput(value: string): number | null {
+  const normalized = value.trim().replace(",", ".");
+  if (!normalized) return null;
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function LoginPage({ onLogin }: { onLogin: (session: Session) => void }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -295,18 +303,17 @@ function DashboardPage({ session, onLogout, onUserUpdate }: { session: Session; 
                     ) : null}
                   </div>
                   <input
-                    type="number"
-                    min="0"
-                    max="1000"
-                    step="0.1"
+                    type="text"
+                    inputMode="decimal"
                     value={draft[weapon.id] ?? ""}
                     onChange={(event) =>
                       setDraft((previous) => ({
                         ...previous,
-                        [weapon.id]: event.target.value === "" ? null : Number(event.target.value)
+                        [weapon.id]: parseKpmInput(event.target.value)
                       }))
                     }
                     className="input w-full"
+                    placeholder="ex: 72.5 ou 72,5"
                   />
                 </div>
               ))}
