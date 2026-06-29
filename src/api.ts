@@ -1,4 +1,4 @@
-import type { Entry, PlayerData, Session } from "./types";
+import type { Entry, PlayerData, Session, Weapon } from "./types";
 
 const SESSION_KEY = "playsure_training_session_v4";
 
@@ -83,11 +83,11 @@ export async function getMe(token: string): Promise<PlayerData> {
   return data.user;
 }
 
-export async function saveEntries(token: string, date: string, values: Record<string, number | null>): Promise<PlayerData> {
+export async function saveEntries(token: string, date: string, values: Record<string, number | null>, weaponsSnapshot: Weapon[] = []): Promise<PlayerData> {
   const data = await request<{ ok: true; user: PlayerData }>("/api/entries", {
     method: "POST",
     headers: authHeaders(token),
-    body: JSON.stringify({ date, values })
+    body: JSON.stringify({ date, values, weaponsSnapshot })
   });
   return data.user;
 }
@@ -100,20 +100,20 @@ export async function deleteDay(token: string, date: string): Promise<PlayerData
   return data.user;
 }
 
-export async function addWeapon(token: string, label: string, id?: string, entriesSnapshot: Entry[] = []): Promise<PlayerData> {
+export async function addWeapon(token: string, label: string, id?: string, entriesSnapshot: Entry[] = [], weaponsSnapshot: Weapon[] = []): Promise<PlayerData> {
   const data = await request<{ ok: true; user: PlayerData }>("/api/weapons", {
     method: "POST",
     headers: authHeaders(token),
-    body: JSON.stringify({ label, id, entriesSnapshot })
+    body: JSON.stringify({ label, id, entriesSnapshot, weaponsSnapshot })
   });
   return data.user;
 }
 
-export async function deleteWeapon(token: string, weaponId: string, entriesSnapshot: Entry[] = []): Promise<PlayerData> {
+export async function deleteWeapon(token: string, weaponId: string, entriesSnapshot: Entry[] = [], weaponsSnapshot: Weapon[] = []): Promise<PlayerData> {
   const data = await request<{ ok: true; user: PlayerData }>(`/api/weapons/${encodeURIComponent(weaponId)}`, {
     method: "DELETE",
     headers: authHeaders(token),
-    body: JSON.stringify({ entriesSnapshot })
+    body: JSON.stringify({ entriesSnapshot, weaponsSnapshot })
   });
   return data.user;
 }

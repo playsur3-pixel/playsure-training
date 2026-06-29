@@ -285,7 +285,7 @@ function DashboardPage({ session, onLogout, onUserUpdate }: { session: Session; 
     setNotice(null);
 
     try {
-      const next = await saveEntries(session.token, selectedDate, draft);
+      const next = await saveEntries(session.token, selectedDate, draft, user.weapons);
       updateUser(next);
       setNotice({ kind: "ok", text: "Saisie enregistrée." });
     } catch (error) {
@@ -301,7 +301,7 @@ function DashboardPage({ session, onLogout, onUserUpdate }: { session: Session; 
     setNotice(null);
 
     try {
-      const next = await addWeapon(session.token, selectedPresetWeapon.label, selectedPresetWeapon.id, user.entries);
+      const next = await addWeapon(session.token, selectedPresetWeapon.label, selectedPresetWeapon.id, user.entries, user.weapons);
       updateUser(next);
       setNotice({ kind: "ok", text: `Arme ajoutée: ${selectedPresetWeapon.label}.` });
     } catch (error) {
@@ -314,7 +314,7 @@ function DashboardPage({ session, onLogout, onUserUpdate }: { session: Session; 
     if (!window.confirm(`Supprimer ${weapon.label} du profil ? Les saisies de cette arme seront supprimées, les autres armes restent intactes.`)) return;
 
     try {
-      const next = await deleteWeapon(session.token, weapon.id, user.entries);
+      const next = await deleteWeapon(session.token, weapon.id, user.entries, user.weapons);
       updateUser(next);
       setNotice({ kind: "ok", text: `${weapon.label} supprimée.` });
     } catch (error) {

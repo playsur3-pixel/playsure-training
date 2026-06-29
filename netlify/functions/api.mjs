@@ -50,6 +50,35 @@ function mergeEntrySnapshots(...sources) {
   return [...byKey.values()];
 }
 
+function normalizeWeaponSnapshot(weapons) {
+  const byId = new Map();
+
+  for (const weapon of Array.isArray(weapons) ? weapons : []) {
+    const id = cleanWeaponId(weapon?.id || weapon?.label || "");
+    const label = String(weapon?.label || id).trim().slice(0, 32);
+    if (!id || !label) continue;
+
+    byId.set(id, {
+      id,
+      label,
+      base: Boolean(weapon?.base),
+      createdAt: weapon?.createdAt || new Date().toISOString()
+    });
+  }
+
+  return [...byId.values()];
+}
+
+function applyWeaponSnapshot(training, weaponsSnapshot) {
+  const snapshot = normalizeWeaponSnapshot(weaponsSnapshot);
+  if (!snapshot.length) return;
+
+  // Le front est la source la plus fiable juste après une action utilisateur.
+  // Cela évite qu'une lecture Blob légèrement ancienne fasse disparaître une arme
+  // ajoutée quelques secondes avant.
+  training.weapons = snapshot;
+}
+
 async function authenticate(event) {
   const token = readBearer(event);
   if (!token) {
@@ -116,6 +145,8 @@ async function handleAddWeapon(event) {
   if (!body) return jsonError(400, "JSON invalide.");
 
   const { credentials, training } = await authenticate(event);
+  applyWeaponSnapshot(training, body.weaponsSnapshot);
+
   const label = String(body?.label || "").trim().slice(0, 32);
   if (label.length < 2) return jsonError(400, "Nom d'arme trop court.");
 
@@ -138,6 +169,8 @@ async function handleDeleteWeapon(event, weaponIdRaw) {
   if (!body) return jsonError(400, "JSON invalide.");
 
   const { credentials, training } = await authenticate(event);
+  applyWeaponSnapshot(training, body.weaponsSnapshot);
+
   const weaponId = cleanWeaponId(weaponIdRaw);
   const weapon = training.weapons.find((item) => item.id === weaponId);
 
@@ -165,6 +198,8 @@ async function handleEntries(event) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !values) return jsonError(400, "Saisie invalide.");
 
   const { credentials, training } = await authenticate(event);
+  applyWeaponSnapshot(training, body.weaponsSnapshot);
+
   const weaponById = new Map(training.weapons.map((weapon) => [weapon.id, weapon]));
   const currentTime = timeIso();
   const parsedEntries = [];
