@@ -397,26 +397,27 @@ function DashboardPage({ session, onLogout, onUserUpdate }: { session: Session; 
                         <span className="truncate font-black text-white">{weapon.label}</span>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={value ?? ""}
-                          onChange={(event) =>
-                            setDraft((previous) => ({
-                              ...previous,
-                              [weapon.id]: parseKpmInput(event.target.value)
-                            }))
-                          }
-                          className="kpm-input"
-                          aria-label={`KPM ${weapon.label}`}
-                        />
-                        {!weapon.base ? (
-                          <button type="button" onClick={() => removeWeapon(weapon)} className="delete-weapon-button" aria-label={`Supprimer ${weapon.label}`}>
-                            Supprimer
-                          </button>
-                        ) : null}
-                      </div>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={value ?? ""}
+                        onChange={(event) =>
+                          setDraft((previous) => ({
+                            ...previous,
+                            [weapon.id]: parseKpmInput(event.target.value)
+                          }))
+                        }
+                        className="kpm-input"
+                        aria-label={`KPM ${weapon.label}`}
+                      />
+
+                      {!weapon.base ? (
+                        <button type="button" onClick={() => removeWeapon(weapon)} className="delete-weapon-button" aria-label={`Supprimer ${weapon.label}`} title={`Supprimer ${weapon.label}`}>
+                          ×
+                        </button>
+                      ) : (
+                        <span className="delete-weapon-placeholder" aria-hidden="true" />
+                      )}
                     </div>
                   );
                 })}
