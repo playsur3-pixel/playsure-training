@@ -302,7 +302,7 @@ function DashboardPage({ session, onLogout, onUserUpdate }: { session: Session; 
     setNotice(null);
 
     try {
-      const next = await addWeapon(session.token, selectedPresetWeapon.label, selectedPresetWeapon.id);
+      const next = await addWeapon(session.token, selectedPresetWeapon.label, selectedPresetWeapon.id, user.entries);
       updateUser(next);
       setNotice({ kind: "ok", text: `Arme ajoutée: ${selectedPresetWeapon.label}.` });
     } catch (error) {
@@ -315,7 +315,7 @@ function DashboardPage({ session, onLogout, onUserUpdate }: { session: Session; 
     if (!window.confirm(`Supprimer ${weapon.label} du profil ? Les saisies de cette arme seront supprimées, les autres armes restent intactes.`)) return;
 
     try {
-      const next = await deleteWeapon(session.token, weapon.id);
+      const next = await deleteWeapon(session.token, weapon.id, user.entries);
       updateUser(next);
       setNotice({ kind: "ok", text: `${weapon.label} supprimée.` });
     } catch (error) {
@@ -383,7 +383,6 @@ function DashboardPage({ session, onLogout, onUserUpdate }: { session: Session; 
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <div>
                       <div className="font-bold text-white">{weapon.label}</div>
-                      <div className="text-xs text-slate-500">KPM</div>
                     </div>
                     {!weapon.base ? (
                       <button type="button" onClick={() => removeWeapon(weapon)} className="text-xs font-bold text-red-300 hover:text-red-200">

@@ -29,6 +29,27 @@ function parseKpmValue(value) {
   return Number.isFinite(parsed) ? parsed : NaN;
 }
 
+function entryMergeKey(entry) {
+  const date = String(entry?.date || "");
+  const weaponId = cleanWeaponId(entry?.weaponId || entry?.weapon || "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !weaponId) return "";
+  return `${date}|${weaponId}`;
+}
+
+function mergeEntrySnapshots(...sources) {
+  const byKey = new Map();
+
+  for (const source of sources) {
+    for (const entry of Array.isArray(source) ? source : []) {
+      const key = entryMergeKey(entry);
+      if (!key) continue;
+      byKey.set(key, entry);
+    }
+  }
+
+  return [...byKey.values()];
+}
+
 async function authenticate(event) {
   const token = readBearer(event);
   if (!token) {
@@ -103,11 +124,19 @@ async function handleAddWeapon(event) {
   if (training.weapons.some((weapon) => weapon.id === id)) return jsonError(409, "Cette arme existe déjà.");
 
   training.weapons.push({ id, label, base: false, createdAt: new Date().toISOString() });
+
+  // Protection contre l'écrasement d'une saisie KPM récente si Netlify Blobs
+  // renvoie une lecture encore légèrement ancienne pendant un enchaînement rapide.
+  training.entries = mergeEntrySnapshots(training.entries, body.entriesSnapshot);
+
   const nextTraining = await writeTraining(credentials.username, training);
   return json(200, { ok: true, user: publicUser(credentials, nextTraining) });
 }
 
 async function handleDeleteWeapon(event, weaponIdRaw) {
+  const body = parseJsonBody(event);
+  if (!body) return jsonError(400, "JSON invalide.");
+
   const { credentials, training } = await authenticate(event);
   const weaponId = cleanWeaponId(weaponIdRaw);
   const weapon = training.weapons.find((item) => item.id === weaponId);
@@ -116,7 +145,12 @@ async function handleDeleteWeapon(event, weaponIdRaw) {
   if (weapon.base) return jsonError(400, "Impossible de supprimer une arme de base.");
 
   training.weapons = training.weapons.filter((item) => item.id !== weaponId);
-  training.entries = training.entries.filter((entry) => cleanWeaponId(entry.weaponId) !== weaponId);
+
+  // Même protection que l'ajout : on fusionne les entries connues côté client,
+  // puis on retire uniquement celles de l'arme supprimée.
+  training.entries = mergeEntrySnapshots(training.entries, body.entriesSnapshot).filter(
+    (entry) => cleanWeaponId(entry.weaponId || entry.weapon) !== weaponId
+  );
 
   const nextTraining = await writeTraining(credentials.username, training);
   return json(200, { ok: true, user: publicUser(credentials, nextTraining) });

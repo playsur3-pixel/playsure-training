@@ -1,4 +1,4 @@
-import type { PlayerData, Session } from "./types";
+import type { Entry, PlayerData, Session } from "./types";
 
 const SESSION_KEY = "playsure_training_session_v4";
 
@@ -100,19 +100,20 @@ export async function deleteDay(token: string, date: string): Promise<PlayerData
   return data.user;
 }
 
-export async function addWeapon(token: string, label: string, id?: string): Promise<PlayerData> {
+export async function addWeapon(token: string, label: string, id?: string, entriesSnapshot: Entry[] = []): Promise<PlayerData> {
   const data = await request<{ ok: true; user: PlayerData }>("/api/weapons", {
     method: "POST",
     headers: authHeaders(token),
-    body: JSON.stringify({ label, id })
+    body: JSON.stringify({ label, id, entriesSnapshot })
   });
   return data.user;
 }
 
-export async function deleteWeapon(token: string, weaponId: string): Promise<PlayerData> {
+export async function deleteWeapon(token: string, weaponId: string, entriesSnapshot: Entry[] = []): Promise<PlayerData> {
   const data = await request<{ ok: true; user: PlayerData }>(`/api/weapons/${encodeURIComponent(weaponId)}`, {
     method: "DELETE",
-    headers: authHeaders(token)
+    headers: authHeaders(token),
+    body: JSON.stringify({ entriesSnapshot })
   });
   return data.user;
 }
